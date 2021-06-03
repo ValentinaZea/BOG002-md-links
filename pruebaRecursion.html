@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        const arreglo = ['a', 'b', 'c', 1, 'd', ['1', '3', 4, 5, 'f'], 'e']
+        let characters = [];
+        function readArray(arr, index, characters){  
+            if(index <= arr.length){
+                if(typeof arr[index] == 'string'){
+                    characters.push(arr[index]);
+                }
+                if(Array.isArray(arr[index])){
+                    return readArray(arr[index], 0, characters);
+                }
+                else{
+                    return readArray(arr, index + 1, characters);
+                }
+            }
+            return characters;
+        }
+        const result = readArray(arreglo, 0, characters);
+        console.log(result);
+    </script>
+</body>
+</html>

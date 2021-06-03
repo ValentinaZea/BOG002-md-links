@@ -1,4 +1,10 @@
 {
   "name": "md-links",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "jsdom": "^16.6.0",
+    "marked": "^2.0.5"
+  }
 }
