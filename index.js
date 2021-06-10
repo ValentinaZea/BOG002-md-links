@@ -1,8 +1,3 @@
-// module.exports = () => {
-//   AQUÍ FUNCIÓN MDLINKS
-  
-
-// };
 const fs = require('fs');
 const path = require('path');
 const marked = require("marked");
@@ -13,18 +8,23 @@ const { JSDOM } = jsdom;
 const mdFiles = [];
 const NO_MD_FILES = "Path not containing mdFiles";
 
-const searchRecursive = (dir) => new Promise((resolve) => {
-  const files = fs.readdirSync(dir)
+const searchRecursive = (mdFilesPath) => new Promise((resolve) => {
+  if(path.extname(mdFilesPath) === ".md"){
+    mdFiles.push(mdFilesPath)
+  }else{
+    const files = fs.readdirSync(mdFilesPath)
       files.forEach(file => {
-        dirInner = path.resolve(dir, file);
+        dirInner = path.resolve(mdFilesPath, file);
         var stat = fs.statSync(dirInner);
         if(path.extname(dirInner) === ".md") mdFiles.push(dirInner);
         else if (stat.isDirectory()) searchRecursive(dirInner)
       });
-    resolve(mdFiles)  
+  }
+  resolve(mdFiles)  
 });
 
 const getLinks = (route) => new Promise((resolve, reject) => {
+    const relPath = path.relative(__dirname, route);
     fs.readFile(route, 'utf8', (err, data) => {
     if (err) reject(err);
     const fileLinks = [];
@@ -38,7 +38,7 @@ const getLinks = (route) => new Promise((resolve, reject) => {
           fileLinks.push({
             href: link,
             text: text,
-            file: route
+            file: relPath
           })
         } 
         // const reg = /\[[\S](.)+\]\(https?:\/\/(\w+\.\w+)+(\/[\w+\-#¿?_.-=]+)*\/?\)/gi
@@ -47,67 +47,66 @@ const getLinks = (route) => new Promise((resolve, reject) => {
     });
 })
 
-  const httpRequest = (linkObj) => new Promise((resolve) => {
-    const url = linkObj.href;
-      axios.get(url)
-      .then((response) => {
-        httpResponse = {
-          status: response.status,
-          ok: "OK"
-        }
-      })
-      .catch((error) => {
-        if (error.response)
-        httpResponse = {
-          status: error.response.status,
-          ok: "Fail"
-        }
-      })
-      .then(()=>{
-        Object.assign(linkObj, httpResponse)
-        resolve(linkObj)
-      })
-  })
-    
-  function createResponse(mdLinks){
-    const allHttpResponse = [];
-    mdLinks.map((element) => {
-      allHttpResponse.push(httpRequest(element))
+const httpRequest = (linkObj) => new Promise((resolve) => {
+  const url = linkObj.href;
+  const options = {
+    headers: {'Access-Control-Allow-Origin' : '*'}
+  };
+    axios.get(url, options)
+    .then((response) => {
+        linkObj.status = response.status,
+        linkObj.ok =  "OK"
     })
-    return Promise.all(allHttpResponse)
-    .then((httpResponse) => httpResponse)
-    .catch((error) => error);
-  }
+    .catch((error) => {
+      if (error.response){
+        linkObj.status = error.response.status,
+        linkObj.ok = "Fail"
+      }else{
+        linkObj.status = error.code,
+        linkObj.ok = "Fail"
+      }
+    })
+    .then(()=>{
+      resolve(linkObj)
+    })
+})
+    
+function createResponse(mdLinks){
+  const allHttpResponse = [];
+  mdLinks.map((element) => {
+    allHttpResponse.push(httpRequest(element))
+  })
+  return Promise.all(allHttpResponse)
+  .then((httpResponse) => httpResponse)
+  .catch((error) => error);
+}
 
-  function mdLinks(filesPath, options){
-    return new Promise((resolve, reject) => {
-      fs.access(filesPath, (err) => {
-        if (err) reject(new Error("No such file or directory"));
-        const absPath = path.isAbsolute(filesPath) ? filesPath : path.resolve(filesPath);
-        const allLinks = [];
-        searchRecursive(absPath).then((mdFiles) => {
-          if(mdFiles.length <= 0) reject(new Error(NO_MD_FILES))
-          mdFiles.map((mdFile) => {
-            allLinks.push(getLinks(mdFile))
+function mdLinks(filesPath, options){
+  return new Promise((resolve, reject) => {
+    options = options || { validate: false }
+    const absPath = path.isAbsolute(filesPath) ? filesPath : path.resolve(filesPath);
+    const allLinks = [];
+    fs.access(absPath, (err) => {
+        if(err) reject(`${absPath} Is not a valid path`);
+        else 
+          fs.stat(absPath, (err, stats) => {
+            if (err) console.error(err)
+            if (stats.isFile() && path.extname(absPath) !== ".md") 
+              reject(`${absPath} Does not contain md files`)
+            else 
+              searchRecursive(absPath).then((mdFiles) => {
+                if(mdFiles.length <= 0) reject(new Error(NO_MD_FILES))
+                mdFiles.map((mdFile) => {
+                  allLinks.push(getLinks(mdFile))
+                })
+                Promise.all(allLinks)
+                  .then(response => {
+                    const fnlResponse = response.flat()
+                    !options.validate ? resolve(fnlResponse) : resolve(createResponse(fnlResponse))
+                  })
+              })
           })
-          Promise.all(allLinks)
-            .then(response => {
-              const fnlResponse = response.flat()
-              !options.validate ? resolve(fnlResponse) : resolve(createResponse(fnlResponse))
-            })
-          })
-        })
     });
-  }
-  mdLinks('mdfilesTest', {validate: true})
-  .then((data)=> {
-    console.log(data)
   });
-
-  
-  
-
-  
-
-  
-
+}
+module.exports = { mdLinks };
